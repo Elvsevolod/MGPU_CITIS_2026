@@ -693,7 +693,14 @@ elif page == "Карта РФ":
                 ).add_to(fmap)
 
     folium.LayerControl(position="topright", collapsed=True).add_to(fmap)
-    components.html(fmap.get_root().render(), height=560, scrolling=False)
+    map_html = fmap.get_root().render()
+    map_html = (
+        "<style>"
+        ".leaflet-control-attribution, .leaflet-control { display: none !important; }"
+        "</style>"
+        + map_html
+    )
+    components.html(map_html, height=560, scrolling=False)
 
     st.divider()
 
