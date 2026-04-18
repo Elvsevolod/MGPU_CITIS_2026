@@ -1,0 +1,8 @@
+metric,value
+rows_total,24880.0
+manual_anomalies_total,752.0
+iforest_anomalies_total,747.0
+overlap_manual_iforest,90.0
+precision_vs_manual,0.1205
+recall_vs_manual,0.1197
+iforest_contamination,0.03

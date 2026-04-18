@@ -1,0 +1,8 @@
+metric,value
+ml_rows_total,24880.0
+target_positive_share_pct,3.02
+roc_auc,0.994
+pr_auc,0.8619
+predicted_high_risk_rows,983.0
+predicted_medium_risk_rows,475.0
+predicted_low_risk_rows,23422.0

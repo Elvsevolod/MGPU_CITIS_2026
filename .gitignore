@@ -1,0 +1,10 @@
+# Большие бинарные файлы эмбеддингов
+results_embeddings/embeddings_cache.json
+results_embeddings/*.npy
+results_embeddings_full/*.npy
+
+# Системное
+.DS_Store
+__pycache__/
+*.pyc
+.idea/

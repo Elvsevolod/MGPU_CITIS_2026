@@ -1,0 +1,8 @@
+metric,value
+rows_before,25628
+rows_after,24880
+rows_removed,748
+exact_duplicate_rows,1079
+conflict_version_rows,387
+unique_child_stage1,21210
+unique_child_stage2,21295

@@ -1,0 +1,11 @@
+metric,value,share_pct
+anomalies_total,747,
+reason_freq_critical_lt30,22,2.95
+reason_freq_lt_90,90,12.05
+reason_quality_score_ge3,38,5.09
+reason_quality_score_ge2,86,11.51
+reason_rare_ogrn_naprav,206,27.58
+reason_rare_ogrn_area,16,2.14
+reason_rare_variant,35,4.69
+reason_school_mismatch,649,86.88
+reason_missing_prev_test,502,67.2
