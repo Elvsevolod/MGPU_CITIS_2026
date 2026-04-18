@@ -233,6 +233,9 @@ FEATURES = ["age_at_test","class_num","age_class_dev","guard_age_diff",
             "result_code","gender_code","test_month","test_year",
             "tests_per_child","days_since_prev"]
 
+# Дополнительный источник: содержит полигон Республики Крым.
+CRIMEA_GEOJSON_URL = "https://raw.githubusercontent.com/imsha/russia_geojson_regions_2021/main/ru.json"
+
 
 # ─── Загрузка данных ─────────────────────────────────────────────────────────
 @st.cache_data(show_spinner="Загрузка данных…")
@@ -272,22 +275,67 @@ def load_regions_geojson_base():
         "data/russia_regions.geojson",
     ]
 
+    base_data = None
+
     for path in local_candidates:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if data.get("features"):
-                return data
+                base_data = data
+                break
         except Exception:
             pass
 
-    regions_geojson_url = "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/russia.geojson"
-    try:
-        with urlopen(regions_geojson_url, timeout=12) as response:
-            data = json.load(response)
-        return data if data.get("features") else None
-    except Exception:
+    if base_data is None:
+        regions_geojson_url = "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/russia.geojson"
+        try:
+            with urlopen(regions_geojson_url, timeout=12) as response:
+                data = json.load(response)
+            base_data = data if data.get("features") else None
+        except Exception:
+            base_data = None
+
+    if not base_data:
         return None
+
+    def norm_name(name):
+        return str(name).strip().lower().replace("ё", "е")
+
+    def get_feature_name(feature):
+        props = feature.get("properties", {})
+        return props.get("name") or props.get("NAME") or ""
+
+    existing = {
+        norm_name(get_feature_name(ft))
+        for ft in base_data.get("features", [])
+        if get_feature_name(ft)
+    }
+
+    # Добавляем только Крым к существующей коллекции, если его нет в базовом источнике.
+    try:
+        with urlopen(CRIMEA_GEOJSON_URL, timeout=12) as response:
+            sup_data = json.load(response)
+
+        sup_features = sup_data.get("features", []) if isinstance(sup_data, dict) else []
+        for ft in sup_features:
+            name = get_feature_name(ft)
+            if norm_name(name) != "республика крым":
+                continue
+            if norm_name(name) in existing:
+                continue
+
+            ft_copy = copy.deepcopy(ft)
+            props = ft_copy.setdefault("properties", {})
+            if "name" not in props and name:
+                props["name"] = name
+            base_data["features"].append(ft_copy)
+            existing.add(norm_name(name))
+            break
+    except Exception:
+        pass
+
+    return base_data
 
 summary, manual, fixes, ml_anom, full_df, hakaton = load_data()
 REGIONS_GEOJSON_BASE = load_regions_geojson_base()
