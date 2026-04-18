@@ -5,11 +5,7 @@ Streamlit-дашборд v2: результаты full_analysis.ipynb + карт
 
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
-import plotly.express as px
-from collections import Counter
-import re
 
 # ─── Страница ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -266,7 +262,7 @@ summary, manual, fixes, ml_anom, full_df, hakaton = load_data()
 
 
 # ─── Компоненты ──────────────────────────────────────────────────────────────
-def metric_card(label, value, delta=None, color=PAL["primary"], delay=0):
+def metric_card(label, value, delta=None, color=PAL["primary"]):
     """Анимированная метрика-карточка — st.html() обходит markdown-парсер."""
     delta_part = (
         f'<p style="font-size:12px;margin:4px 0 0;opacity:0.6;color:#555">{delta}</p>'
@@ -295,7 +291,6 @@ def section_title(text):
 def insight(icon, title, text):
     st.html(
         f'<div style="background:linear-gradient(135deg,#f8f9fa,#fff);border-radius:12px;padding:16px 18px;border:1px solid #e9ecef;margin-bottom:10px">'
-        f'<p style="font-size:22px;margin:0 0 6px">{icon}</p>'
         f'<p style="font-size:14px;font-weight:700;color:#1a1a2e;margin:0 0 4px">{title}</p>'
         f'<p style="font-size:13px;color:#555;margin:0">{text}</p>'
         f'</div>'
@@ -335,8 +330,8 @@ with st.sidebar:
     st.divider()
     page = st.radio(
         "Раздел",
-        ["📊 Обзор", "🗺️ Карта РФ", "🔍 Ручные аномалии",
-         "⏱️ Частота тестирований", "🤖 Isolation Forest", "🔧 Исправления"],
+        ["Исправления", "Ручные аномалии", "Частота тестирований",
+         "Анализ аномалий (ML)", "Карта РФ", "Обзор"],
         label_visibility="collapsed",
     )
     st.divider()
@@ -345,10 +340,10 @@ with st.sidebar:
     ml_n = int(summary["ml_anomalies"])
     st.html(
         f'<div style="font-size:12px;color:#64748B;line-height:2">'
-        f'📁 Записей: <b style="color:#1E293B">{total:,}</b><br>'
-        f'🟡 Ручных: <b style="color:#F59E0B">{manual_n:,}</b><br>'
-        f'🔴 ML: <b style="color:#EF4444">{ml_n:,}</b><br>'
-        f'🟢 Чистых: <b style="color:#10B981">{int(summary["truly_clean"]):,}</b>'
+        f'Записей: <b style="color:#1E293B">{total:,}</b><br>'
+        f'Ручных: <b style="color:#F59E0B">{manual_n:,}</b><br>'
+        f'ML: <b style="color:#EF4444">{ml_n:,}</b><br>'
+        f'Чистых: <b style="color:#10B981">{int(summary["truly_clean"]):,}</b>'
         f'</div>'
     )
 
@@ -356,26 +351,26 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 # СТРАНИЦА 1: ОБЗОР
 # ══════════════════════════════════════════════════════════════════════════════
-if page == "📊 Обзор":
-    page_header("📊 Анализ тестирований по истории", "Двухэтапный анализ качества данных: ручные правила + Isolation Forest · 25 628 записей")
+if page == "Обзор":
+    page_header("Анализ тестирований по истории", "Двухэтапный анализ качества данных: ручные правила + Isolation Forest · 25 628 записей")
 
     # Метрики
     c1,c2,c3,c4,c5,c6 = st.columns(6)
-    with c1: metric_card("Всего записей",   f"{total:,}",                          color=PAL["dark"],    delay=0.0)
-    with c2: metric_card("Исправлено FIX",  f"{int(summary['fixed_records']):,}",  f"{int(summary['fixed_records'])/total*100:.0f}% датасета", PAL["success"], 0.1)
-    with c3: metric_card("Ручных аномалий", f"{manual_n:,}",                       f"{manual_n/total*100:.1f}%", PAL["warning"], 0.2)
-    with c4: metric_card("Подано в IF",     f"{int(summary['clean_for_ml']):,}",   f"{int(summary['clean_for_ml'])/total*100:.1f}%", PAL["primary"], 0.3)
-    with c5: metric_card("ML-аномалий",     f"{ml_n:,}",                           f"5.0% чистых", PAL["danger"], 0.4)
-    with c6: metric_card("Полностью чистых",f"{int(summary['truly_clean']):,}",    f"{int(summary['truly_clean'])/total*100:.1f}%", PAL["success"], 0.5)
+    with c1: metric_card("Всего записей",   f"{total:,}",                          color=PAL["dark"])
+    with c2: metric_card("Исправлено FIX",  f"{int(summary['fixed_records']):,}",  f"{int(summary['fixed_records'])/total*100:.0f}% датасета", PAL["success"])
+    with c3: metric_card("Ручных аномалий", f"{manual_n:,}",                       f"{manual_n/total*100:.1f}%", PAL["warning"])
+    with c4: metric_card("Подано в IF",     f"{int(summary['clean_for_ml']):,}",   f"{int(summary['clean_for_ml'])/total*100:.1f}%", PAL["primary"])
+    with c5: metric_card("ML-аномалий",     f"{ml_n:,}",                           f"5.0% чистых", PAL["danger"])
+    with c6: metric_card("Полностью чистых",f"{int(summary['truly_clean']):,}",    f"{int(summary['truly_clean'])/total*100:.1f}%", PAL["success"])
 
     st.markdown("<br>", unsafe_allow_html=True)
     col_l, col_r = st.columns([3, 2])
 
     with col_l:
-        section_title("🔽 Воронка обработки данных")
+        section_title("Воронка обработки данных")
         stages = [
             ("Исходный датасет",         total,                        PAL["dark"]),
-            ("Исправлено (FIX)",          int(summary["fixed_records"]),PAL["success"]),
+            ("Исправлено",          int(summary["fixed_records"]),PAL["success"]),
             ("Ручных аномалий",           manual_n,                     PAL["warning"]),
             ("Подано в Isolation Forest", int(summary["clean_for_ml"]), PAL["primary"]),
             ("ML-аномалий (новых)",       ml_n,                         PAL["danger"]),
@@ -397,7 +392,7 @@ if page == "📊 Обзор":
         st.plotly_chart(fig, key="funnel", width="stretch")
 
     with col_r:
-        section_title("🥧 Итоговое распределение")
+        section_title("Итоговое распределение")
         clean = int(summary["truly_clean"])
         fig2 = go.Figure(go.Pie(
             labels=["Чистые", "Ручные аномалии", "ML-аномалии"],
@@ -412,18 +407,18 @@ if page == "📊 Обзор":
         st.plotly_chart(fig2, key="pie_total", width="stretch")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    section_title("🔍 Ключевые инсайты")
+    section_title("Ключевые инсайты")
     i1, i2, i3 = st.columns(3)
     with i1:
-        insight("🔧", "Массовая техническая ошибка",
+        insight("", "Массовая техническая ошибка",
                 "53% записей содержали отрицательные/нечисловые номера документов — "
                 "системный баг выгрузки, исправлен автоматически.")
     with i2:
-        insight("⏱️", "Нарушения частоты тестирования",
+        insight("", "Нарушения частоты тестирования",
                 f"1 432 случая тестирования чаще 90 дней. "
                 "Минимальный зафиксированный интервал — 1 день.")
     with i3:
-        insight("🤖", "ML нашла 1 044 новых аномалии",
+        insight("", "ML нашла 1 044 новых аномалии",
                 "Старшие классы в нетипичные месяцы (фев–апр), "
                 "повторные тестирования вне сезона.")
 
@@ -431,8 +426,8 @@ if page == "📊 Обзор":
 # ══════════════════════════════════════════════════════════════════════════════
 # СТРАНИЦА 2: КАРТА РФ
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🗺️ Карта РФ":
-    page_header("🗺️ География нарушений по регионам РФ", "Код региона извлекается из ОГРН направившей школы (позиции 3–4) · наведите на пузырёк")
+elif page == "Карта РФ":
+    page_header("География нарушений по регионам РФ", "Код региона извлекается из ОГРН направившей школы (позиции 3–4) · наведите на пузырёк")
 
     # ── Подготовка данных ──
     manual_with_region = manual.merge(
@@ -477,7 +472,7 @@ elif page == "🗺️ Карта РФ":
     # ── Неоновая карта ──
     st.html(
         '<div style="background:linear-gradient(90deg,#060D18,#0B1929);border:1px solid rgba(0,212,255,0.2);border-radius:12px;padding:14px 20px 8px;margin-bottom:8px">'
-        '<span style="color:#00D4FF;font-weight:700;font-size:16px">🫧 Карта нарушений · пузырёк = показатель · наведите для деталей</span>'
+        '<span style="color:#00D4FF;font-weight:700;font-size:16px">Карта нарушений · пузырёк = показатель · наведите для деталей</span>'
         '</div>'
     )
 
@@ -583,7 +578,7 @@ elif page == "🗺️ Карта РФ":
     # ── Таблица + барчарт ──
     col_tbl, col_bar = st.columns([3, 2])
     with col_tbl:
-        section_title("📋 Статистика по регионам")
+        section_title("Статистика по регионам")
         disp = reg_stats.nlargest(30, field_col)[
             ["region_code","region_name","total","anomalies","freq_viol","anomaly_pct"]
         ].copy()
@@ -593,7 +588,7 @@ elif page == "🗺️ Карта РФ":
         st.dataframe(disp.reset_index(drop=True), width="stretch", height=450)
 
     with col_bar:
-        section_title(f"🏆 Топ-15 по: {metric_field}")
+        section_title(f"Топ-15 по: {metric_field}")
         top15 = reg_stats.nlargest(15, field_col)
         fig_bar = go.Figure(go.Bar(
             x=top15[field_col],
@@ -615,9 +610,9 @@ elif page == "🗺️ Карта РФ":
     # ── Мини-инсайты ──
     top3 = reg_stats.nlargest(3, "anomalies")
     st.divider()
-    section_title("💡 Топ-3 региона по аномалиям")
+    section_title("Топ-3 региона по аномалиям")
     c1, c2, c3 = st.columns(3)
-    icons = ["🥇","🥈","🥉"]
+    icons = ["1", "2", "3"]
     for col, (_, row), icon in zip([c1,c2,c3], top3.iterrows(), icons):
         with col:
             insight(icon, row["region_name"],
@@ -629,15 +624,15 @@ elif page == "🗺️ Карта РФ":
 # ══════════════════════════════════════════════════════════════════════════════
 # СТРАНИЦА 3: РУЧНЫЕ АНОМАЛИИ
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🔍 Ручные аномалии":
-    page_header("🔍 Ручные аномалии", "13 правил · технические ошибки, логические противоречия, неполные записи")
+elif page == "Ручные аномалии":
+    page_header("Ручные аномалии", "13 правил · технические ошибки, логические противоречия, неполные записи")
 
     cat_counts = manual["category"].value_counts().reset_index()
     cat_counts.columns = ["category","count"]
     cat_counts["label"] = cat_counts["category"].map(lambda c: CAT_RU.get(c, c))
     cat_counts["color"] = cat_counts["category"].map(lambda c: CAT_COLORS.get(c, "#999"))
 
-    section_title("📊 Аномалии по категориям")
+    section_title("Аномалии по категориям")
     fig = go.Figure(go.Bar(
         x=cat_counts["count"], y=cat_counts["label"],
         orientation="h",
@@ -654,7 +649,7 @@ elif page == "🔍 Ручные аномалии":
     col_l, col_r = st.columns([1, 2])
 
     with col_l:
-        section_title("🔎 Фильтр")
+        section_title("Фильтр")
         all_labels = ["Все"] + list(cat_counts["label"])
         selected = st.selectbox("Категория:", all_labels)
 
@@ -669,7 +664,7 @@ elif page == "🔍 Ручные аномалии":
         )
 
     with col_r:
-        section_title("📋 Записи" + (f": {selected}" if selected != "Все" else ""))
+        section_title("Записи" + (f": {selected}" if selected != "Все" else ""))
         if selected == "Все":
             filtered = manual
         else:
@@ -687,8 +682,8 @@ elif page == "🔍 Ручные аномалии":
 # ══════════════════════════════════════════════════════════════════════════════
 # СТРАНИЦА 4: ЧАСТОТА
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "⏱️ Частота тестирований":
-    page_header("⏱️ Нарушения частоты тестирований", "Рекомендация: не чаще 1 раза в 3 месяца (90 дней) · 1 432 нарушения")
+elif page == "Частота тестирований":
+    page_header("Нарушения частоты тестирований", "Рекомендация: не чаще 1 раза в 3 месяца (90 дней) · 1 432 нарушения")
 
     freq = manual[manual["category"] == "ЧАСТОТА"].copy()
     freq["days"] = pd.to_numeric(
@@ -705,7 +700,7 @@ elif page == "⏱️ Частота тестирований":
     col_l, col_r = st.columns(2)
 
     with col_l:
-        section_title("📈 Гистограмма интервалов")
+        section_title("Гистограмма интервалов")
         fig = go.Figure(go.Histogram(
             x=freq["days"], nbinsx=44,
             marker=dict(color=PAL["danger"], line=dict(color="white", width=0.5)),
@@ -720,7 +715,7 @@ elif page == "⏱️ Частота тестирований":
         st.plotly_chart(fig, key="freq_hist", width="stretch")
 
     with col_r:
-        section_title("⚖️ Тяжесть нарушений")
+        section_title("Тяжесть нарушений")
         bins   = [0, 7, 14, 30, 60, 89]
         labels = ["≤ 7 дн.", "8–14 дн.", "15–30 дн.", "31–60 дн.", "61–89 дн."]
         colors = ["#7F1D1D","#DC2626","#F97316","#FCD34D","#FDE68A"]
@@ -739,7 +734,7 @@ elif page == "⏱️ Частота тестирований":
     col_a, col_b = st.columns(2)
 
     with col_a:
-        section_title("👶 Топ-20 детей с нарушениями")
+        section_title("Топ-20 детей с нарушениями")
         top_kids = freq.groupby(["our_number","child"]).agg(
             нарушений=("days","count"), мин_интервал=("days","min")
         ).sort_values("нарушений", ascending=False).head(20).reset_index()
@@ -747,7 +742,7 @@ elif page == "⏱️ Частота тестирований":
         st.dataframe(top_kids, width="stretch", hide_index=True)
 
     with col_b:
-        section_title("🏫 Топ-15 школ с нарушениями")
+        section_title("Топ-15 школ с нарушениями")
         freq_sch = freq.merge(
             hakaton[["our_number","name_naprav","region_name"]],
             on="our_number", how="left"
@@ -758,7 +753,7 @@ elif page == "⏱️ Частота тестирований":
         top_sch["Школа"] = top_sch["Школа"].str[:55]
         st.dataframe(top_sch, width="stretch", hide_index=True, height=400)
 
-    section_title("📅 Сезонность нарушений частоты")
+    section_title("Сезонность нарушений частоты")
     freq_d = freq.merge(hakaton[["our_number","test_date"]], on="our_number", how="left")
     freq_d["month"] = pd.to_datetime(freq_d["test_date"], errors="coerce").dt.month
     mc = freq_d["month"].value_counts().reindex(range(1,13), fill_value=0)
@@ -777,8 +772,11 @@ elif page == "⏱️ Частота тестирований":
 # ══════════════════════════════════════════════════════════════════════════════
 # СТРАНИЦА 5: ISOLATION FOREST
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🤖 Isolation Forest":
-    page_header("🤖 ML-анализ: Isolation Forest", "Обучен на 20 881 чистых записях · найдено 1 044 новых аномалии (5%)")
+elif page == "Анализ аномалий (ML)":
+    page_header(
+        "Анализ аномалий",
+        "Использован метод Isolation Forest · обучен на 20 881 чистых записях · найдено 1 044 новых аномалии (5%)",
+    )
 
     df_norm = full_df[full_df["is_ml_anomaly"] == 0]
     df_anom = ml_anom.copy()
@@ -793,7 +791,7 @@ elif page == "🤖 Isolation Forest":
     col_l, col_r = st.columns(2)
 
     with col_l:
-        section_title("📊 Распределение anomaly_score")
+        section_title("Распределение anomaly_score")
         fig = go.Figure()
         fig.add_trace(go.Histogram(
             x=df_norm["anomaly_score"], name="Норма", nbinsx=50,
@@ -812,7 +810,7 @@ elif page == "🤖 Isolation Forest":
         st.plotly_chart(fig, key="score_dist", width="stretch")
 
     with col_r:
-        section_title("🎓 Класс: норма vs ML-аномалия")
+        section_title("Класс: норма vs ML-аномалия")
         nc = df_norm["class_num"].dropna().value_counts().sort_index()
         ac = df_anom["class_num"].dropna().value_counts().sort_index()
         all_c = sorted(set(nc.index) | set(ac.index))
@@ -826,7 +824,7 @@ elif page == "🤖 Isolation Forest":
         plotly_defaults(fig2, 340)
         st.plotly_chart(fig2, key="class_dist", width="stretch")
 
-    section_title("📐 Сравнение признаков: норма vs аномалия")
+    section_title("Сравнение признаков: норма vs аномалия")
     feat_data = []
     for f in FEATURES:
         nm = df_norm[f].mean() if f in df_norm.columns else 0
@@ -855,7 +853,7 @@ elif page == "🤖 Isolation Forest":
         plotly_defaults(fig3, 360)
         st.plotly_chart(fig3, key="feat_cmp", width="stretch")
 
-    section_title("📅 Сезонность: норма vs ML-аномалия")
+    section_title("Сезонность: норма vs ML-аномалия")
     nm_mon = df_norm["test_month"].value_counts().sort_index()
     am_mon = df_anom["test_month"].value_counts().sort_index()
     fig4 = go.Figure()
@@ -868,7 +866,7 @@ elif page == "🤖 Isolation Forest":
     plotly_defaults(fig4, 280)
     st.plotly_chart(fig4, key="ml_season", width="stretch")
 
-    section_title("📋 Топ-50 ML-аномалий (наиболее аномальные)")
+    section_title("Топ-50 ML-аномалий (наиболее аномальные)")
     cols_show = [c for c in ["our_number","last_name","first_name","bdate","class",
                               "test_date","result","anomaly_score","age_at_test","tests_per_child"]
                  if c in df_anom.columns]
@@ -885,8 +883,8 @@ elif page == "🤖 Isolation Forest":
 # ══════════════════════════════════════════════════════════════════════════════
 # СТРАНИЦА 6: ИСПРАВЛЕНИЯ
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🔧 Исправления":
-    page_header("🔧 Автоматические исправления (FIX)", "Исправимые ошибки не удаляются, а корректируются — данные сохраняются для обучения модели")
+elif page == "Исправления":
+    page_header("Автоматические исправления", "Исправимые ошибки не удаляются, а корректируются — данные сохраняются для обучения модели")
 
     fc = fixes["field"].value_counts().reset_index()
     fc.columns = ["Поле","Исправлено"]
@@ -900,7 +898,7 @@ elif page == "🔧 Исправления":
     col_l, col_r = st.columns([1, 2])
 
     with col_l:
-        section_title("📊 Исправлений по полям")
+        section_title("Исправлений по полям")
         fig = go.Figure(go.Bar(
             x=fc["Исправлено"], y=fc["Поле"],
             orientation="h",
@@ -912,13 +910,13 @@ elif page == "🔧 Исправления":
         plotly_defaults(fig, 280)
         st.plotly_chart(fig, key="fix_bar", width="stretch")
 
-        insight("🔧", "Почему важно исправлять, а не удалять?",
+        insight("", "Почему важно исправлять, а не удалять?",
                 "53% датасета содержали технические ошибки в id_doc. "
                 "Удаление сократило бы обучающую выборку вдвое — "
                 "модель обучалась бы на неполных данных.")
 
     with col_r:
-        section_title("🔎 Примеры исправлений по полю")
+        section_title("Примеры исправлений по полю")
         sel_field = st.selectbox("Поле:", fc["Поле"].tolist())
         sub = fixes[fixes["field"] == sel_field][
             ["our_number","old_value","new_value","reason"]
