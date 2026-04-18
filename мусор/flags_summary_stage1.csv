@@ -1,0 +1,10 @@
+flag,count,share_pct
+flag_id_doc_inconsistent_per_child,2858,11.15
+flag_freq_lt_90_days,1373,5.36
+flag_non_numeric_variant,830,3.24
+flag_potential_duplicate_record,346,1.35
+flag_age_class_mismatch,240,0.94
+flag_test_before_birth,1,0.0
+flag_invalid_class_range,1,0.0
+flag_missing_core_fields,0,0.0
+flag_invalid_result_value,0,0.0

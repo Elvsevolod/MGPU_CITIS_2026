@@ -1,0 +1,8 @@
+metric,value
+records_stage2_total,24880.0
+violations_events_total,752.0
+violations_children_total,655.0
+violation_share_pct,3.02
+critical_events_total,198.0
+high_events_total,250.0
+medium_events_total,304.0
