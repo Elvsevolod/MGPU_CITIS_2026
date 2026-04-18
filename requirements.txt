@@ -1,4 +1,5 @@
 altair
+folium
 pandas
 streamlit
 plotly

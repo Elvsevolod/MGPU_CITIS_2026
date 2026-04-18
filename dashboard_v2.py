@@ -4,8 +4,13 @@ Streamlit-дашборд v2: результаты full_analysis.ipynb + карт
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
+import copy
+import json
 import pandas as pd
+import folium
 import plotly.graph_objects as go
+from urllib.request import urlopen
 
 # ─── Страница ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -258,7 +263,34 @@ def load_data():
 
     return summary.iloc[0], manual, fixes, ml_anom, full, hakaton
 
+
+@st.cache_data(show_spinner=False)
+def load_regions_geojson_base():
+    """Предзагрузка geojson регионов РФ: сначала локальный файл, затем URL."""
+    local_candidates = [
+        "results_notebook/russia_regions.geojson",
+        "data/russia_regions.geojson",
+    ]
+
+    for path in local_candidates:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("features"):
+                return data
+        except Exception:
+            pass
+
+    regions_geojson_url = "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/russia.geojson"
+    try:
+        with urlopen(regions_geojson_url, timeout=12) as response:
+            data = json.load(response)
+        return data if data.get("features") else None
+    except Exception:
+        return None
+
 summary, manual, fixes, ml_anom, full_df, hakaton = load_data()
+REGIONS_GEOJSON_BASE = load_regions_geojson_base()
 
 
 # ─── Компоненты ──────────────────────────────────────────────────────────────
@@ -469,109 +501,199 @@ elif page == "Карта РФ":
 
     plot_data = reg_stats.nlargest(top_n, field_col)
 
-    # ── Неоновая карта ──
     st.html(
-        '<div style="background:linear-gradient(90deg,#060D18,#0B1929);border:1px solid rgba(0,212,255,0.2);border-radius:12px;padding:14px 20px 8px;margin-bottom:8px">'
-        '<span style="color:#00D4FF;font-weight:700;font-size:16px">Карта нарушений · пузырёк = показатель · наведите для деталей</span>'
+        '<div style="background:linear-gradient(90deg,#F8FAFC,#FFFFFF);border:1px solid #E2E8F0;border-radius:12px;padding:14px 20px 8px;margin-bottom:8px">'
+        '<span style="color:#1E293B;font-weight:700;font-size:16px">Карта нарушений по регионам России</span>'
         '</div>'
     )
 
-    NEON_LAND    = "#0B1929"   # тёмно-синий фон суши
-    NEON_OCEAN   = "#060D18"   # почти чёрный океан
-    NEON_BORDER  = "#00D4FF"   # циановые границы
-    NEON_COAST   = "#0EA5E9"   # береговая линия
-    NEON_BG      = "#060D18"   # фон всей карты
+    # Folium лучше заполняет экран и позволяет сфокусировать карту только на России
+    fmap = folium.Map(
+        tiles="CartoDB positron",
+        zoom_start=4,
+        min_zoom=3,
+        max_zoom=10,
+        control_scale=True,
+        prefer_canvas=True,
+        world_copy_jump=False,
+        zoom_control=True,
+    )
 
-    neon_scales = {
-        "Все аномалии":          [[0,"rgba(255,0,102,0.13)"],[0.4,"#FF4444"],[1,"#FF0066"]],
-        "Нарушения частоты":     [[0,"rgba(255,179,0,0.13)"],[0.4,"#FFB300"],[1,"#FF6B00"]],
-        "% аномалий от региона": [[0,"rgba(168,85,247,0.13)"],[0.4,"#A855F7"],[1,"#7C3AED"]],
-        "Всего записей":         [[0,"rgba(0,212,255,0.13)"],[0.4,"#00D4FF"],[1,"#0EA5E9"]],
+    # Полигональная карта регионов РФ с hover (fallback ниже на круги, если geojson недоступен)
+    regions_loaded = False
+
+    # Нормализация названий из нашего справочника к названиям в geojson
+    geo_alias = {
+        "Еврейская АО": "Еврейская автономная область",
+        "Ненецкий АО": "Ненецкий автономный округ",
+        "Ханты-Мансийский АО": "Ханты-Мансийский автономный округ - Югра",
+        "Чукотский АО": "Чукотский автономный округ",
+        "Ямало-Ненецкий АО": "Ямало-Ненецкий автономный округ",
+        "Карачаево-Черкесская Респ.": "Карачаево-Черкесская Республика",
+        "Кабардино-Балкарская Респ.": "Кабардино-Балкарская Республика",
+        "Республика Адыгея": "Адыгея",
+        "Республика Алтай": "Алтай",
+        "Республика Башкортостан": "Башкортостан",
+        "Республика Бурятия": "Бурятия",
+        "Республика Дагестан": "Дагестан",
+        "Республика Ингушетия": "Ингушетия",
+        "Республика Северная Осетия": "Северная Осетия — Алания",
+        "Республика Татарстан": "Татарстан",
+        "Республика Тыва": "Тыва",
+        "Удмуртская Республика": "Удмуртия",
+        "Чувашская Республика": "Чувашия",
+        "Чеченская Республика": "Чечня",
+        "Забайкальский край (общ.)": "Забайкальский край",
+        "Иркутская обл. (УОБАО)": "Иркутская область",
     }
-    neon_colorscale = neon_scales.get(metric_field, neon_scales["Все аномалии"])
 
-    fig_map = go.Figure()
+    reg_poly = reg_stats.copy()
+    reg_poly["geo_name"] = reg_poly["region_name"].map(lambda n: geo_alias.get(n, n))
+    reg_poly = reg_poly.groupby("geo_name", as_index=False).agg(
+        total=("total", "sum"),
+        anomalies=("anomalies", "sum"),
+        freq_viol=("freq_viol", "sum"),
+    )
+    reg_poly["anomaly_pct"] = (reg_poly["anomalies"] / reg_poly["total"] * 100).fillna(0).round(1)
 
-    # ── Все регионы — тусклые точки-подложка
-    fig_map.add_trace(go.Scattergeo(
-        lat=reg_stats["lat"], lon=reg_stats["lon"],
-        mode="markers",
-        marker=dict(size=5, color="#1E3A5F", opacity=0.6,
-                    line=dict(color="rgba(0,212,255,0.27)", width=0.5)),
-        hoverinfo="skip", showlegend=False,
-    ))
+    metric_values = dict(zip(reg_poly["geo_name"], reg_poly[field_col]))
+    metric_totals = dict(zip(reg_poly["geo_name"], reg_poly["total"]))
+    metric_freq = dict(zip(reg_poly["geo_name"], reg_poly["freq_viol"]))
+    metric_pct = dict(zip(reg_poly["geo_name"], reg_poly["anomaly_pct"]))
 
-    # Топ регионов — неоновые пузыри
-    max_val = plot_data[field_col].max() or 1
-    sizes = (plot_data[field_col] / max_val * 55 + 10).clip(lower=10)
+    def hex_to_rgb(hex_color):
+        h = hex_color.lstrip("#")
+        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
-    fig_map.add_trace(go.Scattergeo(
-        lat=plot_data["lat"],
-        lon=plot_data["lon"],
-        mode="markers",
-        marker=dict(
-            size=sizes,
-            color=plot_data[field_col],
-            colorscale=neon_colorscale,
-            showscale=True,
-            colorbar=dict(
-                title=dict(text=field_label, font=dict(color="#00D4FF", size=12)),
-                thickness=12, len=0.55,
-                tickfont=dict(color="#7FB3D3"),
-                bgcolor="#0B1929",
-                bordercolor="rgba(0,212,255,0.27)",
+    def rgb_to_hex(rgb):
+        return "#%02x%02x%02x" % rgb
+
+    def lerp_color(c1, c2, t):
+        a = hex_to_rgb(c1)
+        b = hex_to_rgb(c2)
+        out = tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
+        return rgb_to_hex(out)
+
+    try:
+        if not REGIONS_GEOJSON_BASE:
+            raise ValueError("regions geojson is not available")
+
+        # Берем копию, чтобы не мутировать кэшированный geojson
+        regions_geojson = copy.deepcopy(REGIONS_GEOJSON_BASE)
+
+        vals = [float(v) for v in metric_values.values()] or [0.0]
+        vmin, vmax = min(vals), max(vals)
+
+        for feature in regions_geojson.get("features", []):
+            name = feature.get("properties", {}).get("name", "")
+            value = float(metric_values.get(name, 0.0))
+            feature["properties"]["metric_value"] = value
+            feature["properties"]["total"] = int(metric_totals.get(name, 0))
+            feature["properties"]["freq_viol"] = int(metric_freq.get(name, 0))
+            feature["properties"]["anomaly_pct"] = float(metric_pct.get(name, 0.0))
+
+        def region_style(feature):
+            value = float(feature["properties"].get("metric_value", 0.0))
+            t = 0.0 if vmax == vmin else (value - vmin) / (vmax - vmin)
+            fill = lerp_color("#DBEAFE", bubble_color, t)
+            return {
+                "fillColor": fill,
+                "fillOpacity": 0.78,
+                "color": "#334155",
+                "weight": 1.0,
+            }
+
+        folium.GeoJson(
+            regions_geojson,
+            name="Регионы РФ",
+            style_function=region_style,
+            highlight_function=lambda _: {
+                "color": "#0F172A",
+                "weight": 2.6,
+                "fillOpacity": 0.92,
+            },
+            tooltip=folium.GeoJsonTooltip(
+                fields=["name", "metric_value", "total", "freq_viol", "anomaly_pct"],
+                aliases=["Регион:", f"{field_label}:", "Всего записей:", "Нарушений частоты:", "% аномалий:"],
+                localize=True,
+                sticky=True,
+                labels=True,
+                style=(
+                    "background-color: #FFFFFF; color: #111827; font-family: Inter, sans-serif;"
+                    "font-size: 12px; padding: 8px; border: 1px solid #CBD5E1; border-radius: 8px;"
+                ),
             ),
-            opacity=0.9,
-            line=dict(color="#00D4FF", width=1.5),
-        ),
-        hovertemplate=(
-            "<b style='color:#00D4FF'>%{customdata[0]}</b><br>"
-            f"<b>{field_label}:</b> %{{customdata[1]:,.0f}}<br>"
-            "<b>Всего записей:</b> %{customdata[2]:,}<br>"
-            "<b>Нарушений частоты:</b> %{customdata[3]:,}<br>"
-            "<b>% аномалий:</b> %{customdata[4]:.1f}%<extra></extra>"
-        ),
-        customdata=plot_data[["region_name", field_col, "total", "freq_viol", "anomaly_pct"]].values,
-        name="Регионы",
-        showlegend=False,
-    ))
+        ).add_to(fmap)
+        regions_loaded = True
+    except Exception:
+        regions_loaded = False
 
-    # Подписи крупных пузырей
-    big = plot_data[plot_data[field_col] >= plot_data[field_col].quantile(0.75)]
-    fig_map.add_trace(go.Scattergeo(
-        lat=big["lat"], lon=big["lon"],
-        mode="text",
-        text=big["region_code"],
-        textfont=dict(size=8, color="#E0F7FF", family="Inter"),
-        hoverinfo="skip", showlegend=False,
-    ))
+    max_val = plot_data[field_col].max() or 1
+    sizes = (plot_data[field_col] / max_val * 22 + 6).clip(lower=6)
 
-    fig_map.update_geos(
-        projection_type="equirectangular",
-        lataxis_range=[40, 82],
-        lonaxis_range=[19, 180],
-        showland=True,      landcolor=NEON_LAND,
-        showocean=True,     oceancolor=NEON_OCEAN,
-        showlakes=True,     lakecolor="#0D2137",
-        showrivers=True,    rivercolor="#0D2137",
-        showcountries=True, countrycolor=NEON_BORDER,
-        showcoastlines=True,coastlinecolor=NEON_COAST,
-        countrywidth=0.7,   coastlinewidth=1.2,
-        bgcolor=NEON_BG,
-    )
-    fig_map.update_layout(
-        height=560,
-        margin=dict(l=0, r=0, t=0, b=0),
-        paper_bgcolor=NEON_BG,
-        plot_bgcolor=NEON_BG,
-        font=dict(family="Inter", color="#7FB3D3"),
-        hoverlabel=dict(
-            bgcolor="#0B1929",
-            bordercolor="#00D4FF",
-            font=dict(size=13, color="#E0F7FF"),
-        ),
-    )
-    st.plotly_chart(fig_map, key="russia_map", width="stretch")
+    # Рамка только по РФ: центрируемся по фактическим точкам, а не по миру
+    lat_min, lat_max = float(reg_stats["lat"].min()), float(reg_stats["lat"].max())
+    lon_min, lon_max = float(reg_stats["lon"].min()), float(reg_stats["lon"].max())
+    fmap.fit_bounds([[lat_min - 0.4, lon_min - 1.2], [lat_max + 0.4, lon_max + 1.2]])
+
+    def color_for(v):
+        if field_col == "freq_viol":
+            return "#F59E0B"
+        if field_col == "anomaly_pct":
+            return "#8B5CF6"
+        if field_col == "total":
+            return "#3B82F6"
+        return "#EF4444"
+
+    if not regions_loaded:
+        # Fallback: если полигональный geojson недоступен, остаёмся на маркерах
+        for _, row in reg_stats.iterrows():
+            folium.CircleMarker(
+                location=[row["lat"], row["lon"]],
+                radius=3,
+                color="#94A3B8",
+                weight=1,
+                fill=True,
+                fill_color="#CBD5E1",
+                fill_opacity=0.55,
+                tooltip=f"{row['region_name']} · всего: {int(row['total']):,}",
+            ).add_to(fmap)
+
+        label_threshold = plot_data[field_col].quantile(0.75)
+        for _, row in plot_data.iterrows():
+            v = float(row[field_col])
+            folium.CircleMarker(
+                location=[row["lat"], row["lon"]],
+                radius=float(sizes.loc[row.name]),
+                color=color_for(v),
+                weight=2,
+                fill=True,
+                fill_color=color_for(v),
+                fill_opacity=0.78,
+                tooltip=(
+                    f"<b>{row['region_name']}</b><br>"
+                    f"{field_label}: {v:,.0f}<br>"
+                    f"Всего записей: {int(row['total']):,}<br>"
+                    f"Нарушений частоты: {int(row['freq_viol']):,}<br>"
+                    f"% аномалий: {row['anomaly_pct']:.1f}%"
+                ),
+            ).add_to(fmap)
+
+            if v >= label_threshold:
+                folium.Marker(
+                    location=[row["lat"], row["lon"]],
+                    icon=folium.DivIcon(
+                        html=(
+                            '<div style="font-size:11px;font-weight:700;color:#0F172A;'
+                            'background:rgba(255,255,255,0.85);border:1px solid #CBD5E1;'
+                            'border-radius:8px;padding:2px 6px;box-shadow:0 1px 4px rgba(0,0,0,0.08);">'
+                            f'{row["region_code"]}</div>'
+                        )
+                    ),
+                ).add_to(fmap)
+
+    folium.LayerControl(position="topright", collapsed=True).add_to(fmap)
+    components.html(fmap.get_root().render(), height=560, scrolling=False)
 
     st.divider()
 
